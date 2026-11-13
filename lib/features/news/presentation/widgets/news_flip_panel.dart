@@ -35,7 +35,8 @@ class NewsFlipPanel extends StatefulWidget {
   State<NewsFlipPanel> createState() => _NewsFlipPanelState();
 }
 
-class _NewsFlipPanelState extends State<NewsFlipPanel> with TickerProviderStateMixin {
+class _NewsFlipPanelState extends State<NewsFlipPanel>
+    with TickerProviderStateMixin {
   late AnimationController _animController;
   late AnimationController _pulseController;
   late Animation<double> _pulseScale;
@@ -73,26 +74,29 @@ class _NewsFlipPanelState extends State<NewsFlipPanel> with TickerProviderStateM
     for (final a in _itemsCopy) {
       if (a is NewsArticle) _knownLikeCounts.add((a as NewsArticle).id);
     }
-    _animController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 300),
-    )..addListener(() {
-        setState(() {
-          _dragAngle = _animController.value * math.pi;
+    _animController =
+        AnimationController(
+          vsync: this,
+          duration: const Duration(milliseconds: 300),
+        )..addListener(() {
+          setState(() {
+            _dragAngle = _animController.value * math.pi;
+          });
         });
-      });
 
     // Always-animating pulse for like button
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1300),
     )..repeat();
-    _pulseScale = Tween<double>(begin: 1.0, end: 1.65).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeOut),
-    );
-    _pulseOpacity = Tween<double>(begin: 0.45, end: 0.0).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeOut),
-    );
+    _pulseScale = Tween<double>(
+      begin: 1.0,
+      end: 1.65,
+    ).animate(CurvedAnimation(parent: _pulseController, curve: Curves.easeOut));
+    _pulseOpacity = Tween<double>(
+      begin: 0.45,
+      end: 0.0,
+    ).animate(CurvedAnimation(parent: _pulseController, curve: Curves.easeOut));
     // Mark first card as seen immediately (no delay) — POST /viewed
     // And count /view after dwell so it fires on "current news user has see"
     // instead of waiting for next swipe.
@@ -124,7 +128,9 @@ class _NewsFlipPanelState extends State<NewsFlipPanel> with TickerProviderStateM
   void didUpdateWidget(covariant NewsFlipPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
     // First load was empty (NewsInitial -> NewsLoaded) — trigger viewed for index 0
-    if (oldWidget.items.isEmpty && widget.items.isNotEmpty && _itemsCopy.isEmpty) {
+    if (oldWidget.items.isEmpty &&
+        widget.items.isNotEmpty &&
+        _itemsCopy.isEmpty) {
       _itemsCopy = List.of(widget.items);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (_itemsCopy.isNotEmpty && _currentIndex < _itemsCopy.length) {
@@ -155,15 +161,16 @@ class _NewsFlipPanelState extends State<NewsFlipPanel> with TickerProviderStateM
         _itemsCopy = List.of(widget.items);
         _currentIndex = _currentIndex.clamp(0, _itemsCopy.length - 1);
         _likedIds.clear();
-    for (final a in _itemsCopy) {
-      if (a is NewsArticle) {
-        if ((a as NewsArticle).isLiked) _likedIds.add((a as NewsArticle).id);
-      }
-    }
-    _knownLikeCounts.clear();
-    for (final a in _itemsCopy) {
-      if (a is NewsArticle) _knownLikeCounts.add((a as NewsArticle).id);
-    }
+        for (final a in _itemsCopy) {
+          if (a is NewsArticle) {
+            if ((a as NewsArticle).isLiked)
+              _likedIds.add((a as NewsArticle).id);
+          }
+        }
+        _knownLikeCounts.clear();
+        for (final a in _itemsCopy) {
+          if (a is NewsArticle) _knownLikeCounts.add((a as NewsArticle).id);
+        }
       } else {
         // Seed server liked state for newly appended pages.
         for (final a in widget.items) {
@@ -171,11 +178,12 @@ class _NewsFlipPanelState extends State<NewsFlipPanel> with TickerProviderStateM
             if (a.isLiked) _likedIds.add(a.id);
             _knownLikeCounts.add(a.id);
           }
-      }
-      if (widget.hasMore &&
-          !widget.isLoadingMore &&
-          _currentIndex >= widget.items.length - 3) {
-        widget.onNearEnd?.call();
+        }
+        if (widget.hasMore &&
+            !widget.isLoadingMore &&
+            _currentIndex >= widget.items.length - 3) {
+          widget.onNearEnd?.call();
+        }
       }
     }
   }
@@ -206,7 +214,10 @@ class _NewsFlipPanelState extends State<NewsFlipPanel> with TickerProviderStateM
     }
     final store = ViewedStore.instance;
     await store.ensureLoaded();
-    dev.log('view attempt old=$postId hasToken=${await TokenStorage().hasToken()}', name: 'FLIP');
+    dev.log(
+      'view attempt old=$postId hasToken=${await TokenStorage().hasToken()}',
+      name: 'FLIP',
+    );
     try {
       await _repo().markView(postId);
       dev.log('view done old=$postId', name: 'FLIP');
@@ -229,7 +240,10 @@ class _NewsFlipPanelState extends State<NewsFlipPanel> with TickerProviderStateM
     await store.ensureLoaded();
     final hasToken = await TokenStorage().hasToken();
     final fresh = store.isFresh(postId);
-    dev.log('viewed attempt new=$postId hasToken=$hasToken isFresh=$fresh', name: 'FLIP');
+    dev.log(
+      'viewed attempt new=$postId hasToken=$hasToken isFresh=$fresh',
+      name: 'FLIP',
+    );
     // Keep local for ?exclude fallback even if fresh — but don't skip API for authed (server is source of truth)
     await store.markLocal(postId);
     if (!hasToken) {
@@ -277,7 +291,8 @@ class _NewsFlipPanelState extends State<NewsFlipPanel> with TickerProviderStateM
     // Fire /view after short dwell so current card is counted without waiting for swipe.
     _viewTimer = Timer(const Duration(milliseconds: 1200), () {
       if (!mounted) return;
-      if (_currentIndex < _itemsCopy.length && _itemsCopy[_currentIndex].id == articleId) {
+      if (_currentIndex < _itemsCopy.length &&
+          _itemsCopy[_currentIndex].id == articleId) {
         _viewCountedIds.add(articleId);
         // ignore: discarded_futures
         _markViewOnSwipe(articleId);
@@ -349,7 +364,9 @@ class _NewsFlipPanelState extends State<NewsFlipPanel> with TickerProviderStateM
           _scheduleViewTimer(_itemsCopy[_currentIndex].id);
         }
         // Prefetch next page when 2 cards left
-        if (widget.hasMore && !widget.isLoadingMore && _currentIndex >= widget.items.length - 2) {
+        if (widget.hasMore &&
+            !widget.isLoadingMore &&
+            _currentIndex >= widget.items.length - 2) {
           widget.onNearEnd?.call();
         }
         if (_currentIndex >= widget.items.length - 1) {
@@ -386,25 +403,29 @@ class _NewsFlipPanelState extends State<NewsFlipPanel> with TickerProviderStateM
         fit: BoxFit.cover,
         placeholder: (_, _) => Center(
           child: CircularProgressIndicator(
-            color: isDark ? Colors.white24 : theme.colorScheme.primary.withValues(alpha: 0.3),
+            color: isDark
+                ? Colors.white24
+                : theme.colorScheme.primary.withValues(alpha: 0.3),
           ),
         ),
         errorWidget: (_, _, _) => Container(
           color: cardColors.errorIconBg,
-          child: Icon(Icons.image_not_supported,
-              color: isDark ? Colors.white24 : Colors.black26, size: 48),
+          child: Icon(
+            Icons.image_not_supported,
+            color: isDark ? Colors.white24 : Colors.black26,
+            size: 48,
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildBottomTextPanel(
-    BuildContext context,
-    NewsArticle article,
-  ) {
+  Widget _buildBottomTextPanel(BuildContext context, NewsArticle article) {
     final cardColors = Theme.of(context).extension<AppCardColors>()!;
     final isLiked = _likedIds.contains(article.id);
-    final likes = _itemsCopy.firstWhere((a) => a.id == article.id, orElse: () => article).likes;
+    final likes = _itemsCopy
+        .firstWhere((a) => a.id == article.id, orElse: () => article)
+        .likes;
 
     return Container(
       width: double.infinity,
@@ -422,10 +443,21 @@ class _NewsFlipPanelState extends State<NewsFlipPanel> with TickerProviderStateM
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.visibility_outlined, size: 22, color: cardColors.descriptionColor),
+                  Icon(
+                    Icons.visibility_outlined,
+                    size: 22,
+                    color: cardColors.descriptionColor,
+                  ),
                   const SizedBox(width: 6),
                   Text(
-                    _formatCount(_itemsCopy.firstWhere((a) => a.id == article.id, orElse: () => article).views),
+                    _formatCount(
+                      _itemsCopy
+                          .firstWhere(
+                            (a) => a.id == article.id,
+                            orElse: () => article,
+                          )
+                          .views,
+                    ),
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
@@ -440,15 +472,27 @@ class _NewsFlipPanelState extends State<NewsFlipPanel> with TickerProviderStateM
                 onTap: () => _showCommentSheet(context, article),
                 borderRadius: BorderRadius.circular(20),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 4,
+                  ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.chat_bubble_outline_rounded, size: 22, color: cardColors.descriptionColor),
+                      Icon(
+                        Icons.chat_bubble_outline_rounded,
+                        size: 22,
+                        color: cardColors.descriptionColor,
+                      ),
                       const SizedBox(width: 6),
                       Text(
                         _formatCount(
-                          _itemsCopy.firstWhere((a) => a.id == article.id, orElse: () => article).comments,
+                          _itemsCopy
+                              .firstWhere(
+                                (a) => a.id == article.id,
+                                orElse: () => article,
+                              )
+                              .comments,
                         ),
                         style: TextStyle(
                           fontSize: 13,
@@ -485,8 +529,13 @@ class _NewsFlipPanelState extends State<NewsFlipPanel> with TickerProviderStateM
                                   color: Colors.transparent,
                                   border: Border.all(
                                     width: 2.8,
-                                    color: (isLiked ? Theme.of(context).colorScheme.primary : cardColors.descriptionColor)
-                                        .withValues(alpha: 0.85),
+                                    color:
+                                        (isLiked
+                                                ? Theme.of(
+                                                    context,
+                                                  ).colorScheme.primary
+                                                : cardColors.descriptionColor)
+                                            .withValues(alpha: 0.85),
                                   ),
                                 ),
                               ),
@@ -498,21 +547,31 @@ class _NewsFlipPanelState extends State<NewsFlipPanel> with TickerProviderStateM
                     },
                     child: Material(
                       color: isLiked
-                          ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.14)
+                          ? Theme.of(
+                              context,
+                            ).colorScheme.primary.withValues(alpha: 0.14)
                           : cardColors.descriptionColor.withValues(alpha: 0.08),
                       shape: const CircleBorder(),
                       clipBehavior: Clip.antiAlias,
                       child: InkWell(
                         onTap: () => _toggleLike(context, article),
                         customBorder: const CircleBorder(),
-                        splashColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.20),
-                        highlightColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.10),
+                        splashColor: Theme.of(
+                          context,
+                        ).colorScheme.primary.withValues(alpha: 0.20),
+                        highlightColor: Theme.of(
+                          context,
+                        ).colorScheme.primary.withValues(alpha: 0.10),
                         child: Padding(
                           padding: const EdgeInsets.all(8),
                           child: Icon(
-                            isLiked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                            isLiked
+                                ? Icons.favorite_rounded
+                                : Icons.favorite_border_rounded,
                             size: 22,
-                            color: isLiked ? Theme.of(context).colorScheme.primary : cardColors.descriptionColor,
+                            color: isLiked
+                                ? Theme.of(context).colorScheme.primary
+                                : cardColors.descriptionColor,
                           ),
                         ),
                       ),
@@ -524,7 +583,9 @@ class _NewsFlipPanelState extends State<NewsFlipPanel> with TickerProviderStateM
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
-                      color: isLiked ? Theme.of(context).colorScheme.primary : cardColors.descriptionColor,
+                      color: isLiked
+                          ? Theme.of(context).colorScheme.primary
+                          : cardColors.descriptionColor,
                     ),
                   ),
                 ],
@@ -532,7 +593,10 @@ class _NewsFlipPanelState extends State<NewsFlipPanel> with TickerProviderStateM
             ],
           ),
           const SizedBox(height: 6),
-          Divider(height: 1, color: cardColors.descriptionColor.withValues(alpha: 0.12)),
+          Divider(
+            height: 1,
+            color: cardColors.descriptionColor.withValues(alpha: 0.12),
+          ),
           const SizedBox(height: 6),
           Text(
             article.title,
@@ -564,8 +628,7 @@ class _NewsFlipPanelState extends State<NewsFlipPanel> with TickerProviderStateM
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final nextIndex =
-            math.min(_currentIndex + 1, widget.items.length - 1);
+        final nextIndex = math.min(_currentIndex + 1, widget.items.length - 1);
 
         final currentArticle = widget.items[_currentIndex];
         final nextArticle = widget.items[nextIndex];
@@ -672,7 +735,9 @@ class _NewsFlipPanelState extends State<NewsFlipPanel> with TickerProviderStateM
       } else if (!wasLiked && prevIdx != -1) {
         // No server count yet: show the +1 immediately, truth arrives below.
         _knownLikeCounts.add(id);
-        _itemsCopy[prevIdx] = _itemsCopy[prevIdx].copyWith(likes: prevCount + 1);
+        _itemsCopy[prevIdx] = _itemsCopy[prevIdx].copyWith(
+          likes: prevCount + 1,
+        );
       }
     });
     // Analytics (batched, idempotent)
@@ -729,20 +794,23 @@ class _NewsFlipPanelState extends State<NewsFlipPanel> with TickerProviderStateM
       });
       final msg = e.toString().toLowerCase();
       final needsLogin =
-          msg.contains('401') || msg.contains('unauthor') || msg.contains('login');
+          msg.contains('401') ||
+          msg.contains('unauthor') ||
+          msg.contains('login');
       if (needsLogin) {
         LoginPromptBottomSheet.show(context);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to update like. Try again.'),
-          ),
+          const SnackBar(content: Text('Failed to update like. Try again.')),
         );
       }
     }
   }
 
-  Future<void> _showCommentSheet(BuildContext context, NewsArticle article) async {
+  Future<void> _showCommentSheet(
+    BuildContext context,
+    NewsArticle article,
+  ) async {
     final hasToken = await TokenStorage().hasToken();
     if (!hasToken) {
       if (context.mounted) {
@@ -764,7 +832,9 @@ class _NewsFlipPanelState extends State<NewsFlipPanel> with TickerProviderStateM
           setState(() {
             final idx = _itemsCopy.indexWhere((a) => a.id == article.id);
             if (idx != -1) {
-              _itemsCopy[idx] = _itemsCopy[idx].copyWith(comments: _itemsCopy[idx].comments + 1);
+              _itemsCopy[idx] = _itemsCopy[idx].copyWith(
+                comments: _itemsCopy[idx].comments + 1,
+              );
             }
           });
         },
