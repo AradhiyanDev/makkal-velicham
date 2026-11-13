@@ -16,8 +16,12 @@ class CommentModel extends Comment {
   /// List item shape: {id, comment, user:{name, avatar}, user_name,
   /// time, created_at, ...}. Post shape: {id, comment, created_at, ...}
   /// (author filled by caller from the logged-in user).
+  ///
+  /// Botble serializes a missing/deleted comment user as `[]` (an empty
+  /// model withDefault()), not `null`, so accept either shape.
   factory CommentModel.fromJson(Map<String, dynamic> json, {String? fallbackAuthor}) {
-    final user = json['user'] as Map<String, dynamic>?;
+    final rawUser = json['user'];
+    final user = rawUser is Map ? Map<String, dynamic>.from(rawUser) : null;
     final fullName = [
       user?['first_name'] as String?,
       user?['last_name'] as String?,
@@ -42,7 +46,7 @@ class CommentModel extends Comment {
 
 /// Laravel paginator nested under `data`:
 /// {error:false, data:{current_page, data:[...], last_page, per_page, total}}
-/// Empty case: {error:false, data:[], total:0}.
+/// Cursor response: {error:false, data:[...], additional:{meta:{...}}}.
 class CommentListResponse {
   final List<CommentModel> comments;
   final int currentPage;
@@ -60,28 +64,40 @@ class CommentListResponse {
 
   factory CommentListResponse.fromJson(Map<String, dynamic> json) {
     final data = json['data'];
+
     if (data is List) {
-      final comments = data
-          .map((e) => CommentModel.fromJson(e as Map<String, dynamic>))
-          .toList();
+      final comments = _parseComments(data);
       return CommentListResponse(
         comments: comments,
         currentPage: 1,
         lastPage: 1,
         perPage: comments.length,
-        total: (json['total'] as int?) ?? comments.length,
+        total: _asInt(json['total']) ?? comments.length,
       );
     }
-    final page = (data as Map<String, dynamic>?) ?? {};
-    final items = (page['data'] as List? ?? [])
-        .map((e) => CommentModel.fromJson(e as Map<String, dynamic>))
-        .toList();
+
+    final page = data is Map ? Map<String, dynamic>.from(data) : const <String, dynamic>{};
+    final comments = _parseComments(page['data']);
+
     return CommentListResponse(
-      comments: items,
-      currentPage: (page['current_page'] as int?) ?? 1,
-      lastPage: (page['last_page'] as int?) ?? 1,
-      perPage: (page['per_page'] as int?) ?? items.length,
-      total: (page['total'] as int?) ?? items.length,
+      comments: comments,
+      currentPage: _asInt(page['current_page']) ?? 1,
+      lastPage: _asInt(page['last_page']) ?? 1,
+      perPage: _asInt(page['per_page']) ?? comments.length,
+      total: _asInt(page['total']) ?? comments.length,
     );
+  }
+
+  static List<CommentModel> _parseComments(dynamic value) {
+    if (value is! List) return const <CommentModel>[];
+    return value
+        .whereType<Map>()
+        .map((item) => CommentModel.fromJson(Map<String, dynamic>.from(item)))
+        .toList();
+  }
+
+  static int? _asInt(dynamic value) {
+    if (value is num) return value.toInt();
+    return int.tryParse('$value');
   }
 }
