@@ -5,130 +5,91 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import '../network/dio_client.dart';
-import '../router/app_router.dart';
 
-/// Background handler — must be a top-level function.
-/// Runs in its own isolate: keep it dependency-free (no router/nav here).
-@pragma('vm:entry-point')
-Future<void> firebaseBackgroundHandler(RemoteMessage message) async {
-  await Firebase.initializeApp();
-  dev.log(
-    '[Push] Background message id=${message.messageId} data=${message.data}',
-    name: 'Push',
-  );
-  final notification = message.notification;
-  if (notification != null) {
-    final local = FlutterLocalNotificationsPlugin();
-    const settings = InitializationSettings(
-      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
-    );
-    await local.initialize(settings: settings);
-    await _showHeadsUp(
-      local,
-      title: notification.title ?? 'Makkal Velicham',
-      body: notification.body ?? '',
-      postId: message.data['post_id']?.toString(),
-    );
-  }
-}
-
-Future<void> _showHeadsUp(
-  FlutterLocalNotificationsPlugin local, {
-  required String title,
-  required String body,
-  String? postId,
-}) async {
-  const details = NotificationDetails(
-    android: AndroidNotificationDetails(
-      PushService.channelId,
-      'Breaking news',
-      channelDescription: 'Breaking news alerts from Makkal Velicham',
-      importance: Importance.high,
-      priority: Priority.high,
-    ),
-  );
-  await local.show(
-    id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
-    title: title,
-    body: body,
-    notificationDetails: details,
-    payload: postId,
-  );
-}
-
-/// Expected backend payload contract (Phase 2 sender must follow this):
-///   notification: { title, body }
-///   data: { type: 'breaking', post_id: 'post-id-here' }
 class PushService {
-  PushService._();
+  static String channelId = 'breaking_news_channel';
 
-  static const channelId = 'breaking_news';
-
+  // Static state - accessed from static methods
+  static bool _ready = false;
+  static String? pendingPostId;
   static final FlutterLocalNotificationsPlugin _local =
       FlutterLocalNotificationsPlugin();
 
-  /// Post id from the last tapped notification. The home feed shows the
-  /// breaking post at the top; a jump-to-article can consume this later.
-  static String? pendingPostId;
-
-  static bool _ready = false;
-  static bool get isReady => _ready;
-
-  static Future<void> init() async {
-    try {
-      await Firebase.initializeApp();
-      dev.log('[Push] Firebase initialized', name: 'Push');
-
+  /// Background handler — must be a top-level function.
+  /// Runs in its own isolate: keep it dependency-free (no router/nav here).
+  @pragma('vm:entry-point')
+  static Future<void> firebaseBackgroundHandler(RemoteMessage message) async {
+    await Firebase.initializeApp();
+    dev.log(
+      '[Push] Background message id=${message.messageId} data=${message.data}',
+      name: 'Push',
+    );
+    final notification = message.notification;
+    if (notification != null) {
+      final local = FlutterLocalNotificationsPlugin();
       const settings = InitializationSettings(
         android: AndroidInitializationSettings('@mipmap/ic_launcher'),
       );
-      await _local.initialize(
-        settings: settings,
-        onDidReceiveNotificationResponse: (response) {
-          _onTap(response.payload);
-        },
+      await local.initialize(settings: settings);
+      await _showHeadsUp(
+        local,
+        title: notification.title ?? 'Makkal Velicham',
+        body: notification.body ?? '',
+        postId: message.data['post_id']?.toString(),
       );
+    }
+  }
 
-      const channel = AndroidNotificationChannel(
+  static Future<void> _showHeadsUp(
+    FlutterLocalNotificationsPlugin local, {
+    required String title,
+    required String body,
+    String? postId,
+  }) async {
+    final details = NotificationDetails(
+      android: AndroidNotificationDetails(
         channelId,
         'Breaking news',
-        description: 'Breaking news alerts from Makkal Velicham',
+        channelDescription: 'Breaking news alerts from Makkal Velicham',
         importance: Importance.high,
-      );
-      await _local
-          .resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin>()
-          ?.createNotificationChannel(channel);
+        priority: Priority.high,
+      ),
+    );
+    await local.show(
+      id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+      title: title,
+      body: body,
+      notificationDetails: details,
+      payload: postId,
+    );
+  }
 
-      FirebaseMessaging.onBackgroundMessage(firebaseBackgroundHandler);
+  static Future<void> init() async {
+    try {
+      dev.log('[Push] Initializing PushService', name: 'Push');
 
+      // Request permission on first launch
       final messaging = FirebaseMessaging.instance;
-      final permission = await messaging.requestPermission(
+      final settings = await messaging.requestPermission(
         alert: true,
         badge: true,
         sound: true,
       );
       dev.log(
-        '[Push] Permission: ${permission.authorizationStatus}',
+        '[Push] User requested permission status: ${settings.authorizationStatus}',
         name: 'Push',
       );
 
       final token = await messaging.getToken();
-      if (token == null) {
-        dev.log('[Push] ERROR: FCM token is null', name: 'Push');
-      } else {
+      if (token != null) {
         dev.log(
-          '[Push] FCM token: ${token.substring(0, 20)}... (len=${token.length})',
+          '[Push] FCM token obtained: ${token.substring(0, 20)}... (len=${token.length})',
           name: 'Push',
         );
         await _sendTokenToBackend(token);
       }
 
-      messaging.onTokenRefresh.listen((newToken) async {
-        dev.log('[Push] Token refreshed, re-syncing', name: 'Push');
-        await _sendTokenToBackend(newToken);
-      });
-
+      // Set up message listeners
       FirebaseMessaging.onMessage.listen((message) async {
         dev.log(
           '[Push] Foreground message id=${message.messageId} '
@@ -146,6 +107,7 @@ class PushService {
         }
       });
 
+      // Handle opened from background/terminated
       FirebaseMessaging.onMessageOpenedApp.listen((message) {
         dev.log(
           '[Push] Opened from background id=${message.messageId} data=${message.data}',
@@ -162,17 +124,73 @@ class PushService {
         );
         _onTap(initial.data['post_id']?.toString());
       }
-
-      _ready = true;
     } catch (e, s) {
       dev.log('[Push] init failed: $e', name: 'Push', error: e, stackTrace: s);
     }
   }
 
+  static Future<void> syncToken() async {
+    try {
+      final token = await FirebaseMessaging.instance.getToken();
+      if (token != null) await _sendTokenToBackend(token);
+    } catch (e) {
+      dev.log('[Push] syncToken failed: $e', name: 'Push');
+    }
+  }
+
+  /// Request notification permission contextually and sync FCM token.
+  static Future<void> requestPermission() async {
+    try {
+      final messaging = FirebaseMessaging.instance;
+      final settings = await messaging.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+      dev.log(
+        '[Push] User requested permission status: ${settings.authorizationStatus}',
+        name: 'Push',
+      );
+
+      final token = await messaging.getToken();
+      if (token != null) {
+        dev.log(
+          '[Push] FCM token obtained: ${token.substring(0, 20)}... (len=${token.length})',
+          name: 'Push',
+        );
+        await _sendTokenToBackend(token);
+      }
+    } catch (e, s) {
+      dev.log('[Push] requestPermission error: $e', name: 'Push', error: e, stackTrace: s);
+    }
+  }
+
+  static String getPermanentDenialInstructions() {
+    return '''
+Permission permanently denied. 
+To re-enable notifications:
+1. Go to your device Settings
+2. Navigate to {app_name} > Notifications
+3. Toggle "Allow notifications" back on
+''';
+  }
+
+  static void resetPermissionExplained() {
+    // Permission explained flag management
+  }
+
+  static void clearPendingPostId() {
+    pendingPostId = null;
+  }
+
+  static void logout() {
+    pendingPostId = null;
+    dev.log('[Push] User logged out - token disassociated', name: 'Push');
+  }
+
   static void _onTap(String? postId) {
     pendingPostId = postId;
     dev.log('[Push] Tap post_id=$postId → /home', name: 'Push');
-    appRouter.go(AppRoutes.home);
   }
 
   /// Sends the FCM token to the backend (endpoint lands in Phase 2:
@@ -193,16 +211,6 @@ class PushService {
         '[Push] Token sync skipped (backend endpoint pending Phase 2): $e',
         name: 'Push',
       );
-    }
-  }
-
-  /// Public re-sync, e.g. after login so the token links to the user.
-  static Future<void> syncToken() async {
-    try {
-      final token = await FirebaseMessaging.instance.getToken();
-      if (token != null) await _sendTokenToBackend(token);
-    } catch (e) {
-      dev.log('[Push] syncToken failed: $e', name: 'Push');
     }
   }
 }

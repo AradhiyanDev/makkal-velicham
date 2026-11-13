@@ -67,9 +67,10 @@ class NewsView extends StatelessWidget {
           return Stack(
             children: [
               NewsFlipPanel(
-                articles: state.articles,
+                items: state.articles,
                 hasMore: !state.hasReachedMax,
                 isLoadingMore: state.isLoadingMore,
+                adInterval: 5,
                 onNearEnd: () => context.read<NewsBloc>().add(const FetchMoreNews()),
               ),
               if (state.isLoadingMore)

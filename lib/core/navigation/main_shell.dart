@@ -4,6 +4,7 @@ import '../../features/news/presentation/pages/news_page.dart';
 import '../../features/explore/presentation/pages/explore_page.dart';
 import '../../features/bookmarks/presentation/pages/bookmarks_page.dart';
 import '../../features/profile/presentation/pages/profile_page.dart';
+import '../../features/news/presentation/widgets/notification_permission_dialog.dart';
 
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
@@ -23,6 +24,18 @@ class _MainShellState extends State<MainShell> {
     BookmarksPage(),
     ProfilePage(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future.delayed(const Duration(milliseconds: 600), () {
+        if (mounted) {
+          NotificationPermissionDialog.checkAndShow(context);
+        }
+      });
+    });
+  }
 
   @override
   void dispose() {

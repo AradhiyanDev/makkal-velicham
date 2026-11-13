@@ -14,19 +14,21 @@ import '../../domain/entities/news_article.dart';
 import 'comment_bottom_sheet.dart';
 
 class NewsFlipPanel extends StatefulWidget {
-  final List<NewsArticle> articles;
+  final List<dynamic> items; // Can be NewsArticle or Ad
   final VoidCallback? onDone;
   final VoidCallback? onNearEnd;
   final bool hasMore;
   final bool isLoadingMore;
+  final int adInterval; // Show ad every N items
 
   const NewsFlipPanel({
     super.key,
-    required this.articles,
+    required this.items,
     this.onDone,
     this.onNearEnd,
     this.hasMore = false,
     this.isLoadingMore = false,
+    this.adInterval = 5,
   });
 
   @override
@@ -49,7 +51,7 @@ class _NewsFlipPanelState extends State<NewsFlipPanel> with TickerProviderStateM
   final Set<String> _likedIds = {};
   // Server now returns likes_count in feed; keep all ids as known so count is always visible.
   final Set<String> _knownLikeCounts = {};
-  late List<NewsArticle> _articlesCopy;
+  late List<dynamic> _itemsCopy;
   final AnalyticsService _analytics = AnalyticsService();
   Timer? _engagedTimer;
   Timer? _deepReadTimer;
@@ -60,14 +62,17 @@ class _NewsFlipPanelState extends State<NewsFlipPanel> with TickerProviderStateM
   @override
   void initState() {
     super.initState();
-    _articlesCopy = List.of(widget.articles);
-    _likedIds.addAll([
-      for (final a in _articlesCopy)
-        if (a.isLiked) a.id,
-    ]);
-    _knownLikeCounts.addAll([
-      for (final a in _articlesCopy) a.id,
-    ]);
+    _itemsCopy = List.of(widget.items);
+    _likedIds.clear();
+    for (final a in _itemsCopy) {
+      if (a is NewsArticle) {
+        if ((a as NewsArticle).isLiked) _likedIds.add((a as NewsArticle).id);
+      }
+    }
+    _knownLikeCounts.clear();
+    for (final a in _itemsCopy) {
+      if (a is NewsArticle) _knownLikeCounts.add((a as NewsArticle).id);
+    }
     _animController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 300),
@@ -91,13 +96,13 @@ class _NewsFlipPanelState extends State<NewsFlipPanel> with TickerProviderStateM
     // Mark first card as seen immediately (no delay) — POST /viewed
     // And count /view after dwell so it fires on "current news user has see"
     // instead of waiting for next swipe.
-    if (_articlesCopy.isNotEmpty) {
+    if (_itemsCopy.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         // ignore: discarded_futures
-        _markSeen(_articlesCopy[_currentIndex].id);
-        _trackImpression(_articlesCopy[_currentIndex].id);
-        _scheduleAnalyticsTimers(_articlesCopy[_currentIndex].id);
-        _scheduleViewTimer(_articlesCopy[_currentIndex].id);
+        _markSeen(_itemsCopy[_currentIndex].id);
+        _trackImpression(_itemsCopy[_currentIndex].id);
+        _scheduleAnalyticsTimers(_itemsCopy[_currentIndex].id);
+        _scheduleViewTimer(_itemsCopy[_currentIndex].id);
       });
     }
     _analytics.startPeriodicFlush();
@@ -119,51 +124,57 @@ class _NewsFlipPanelState extends State<NewsFlipPanel> with TickerProviderStateM
   void didUpdateWidget(covariant NewsFlipPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
     // First load was empty (NewsInitial -> NewsLoaded) — trigger viewed for index 0
-    if (oldWidget.articles.isEmpty && widget.articles.isNotEmpty && _articlesCopy.isEmpty) {
-      _articlesCopy = List.of(widget.articles);
+    if (oldWidget.items.isEmpty && widget.items.isNotEmpty && _itemsCopy.isEmpty) {
+      _itemsCopy = List.of(widget.items);
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_articlesCopy.isNotEmpty && _currentIndex < _articlesCopy.length) {
+        if (_itemsCopy.isNotEmpty && _currentIndex < _itemsCopy.length) {
+          final firstItem = _itemsCopy[_currentIndex];
           // ignore: discarded_futures
-          _markSeen(_articlesCopy[_currentIndex].id);
-          _trackImpression(_articlesCopy[_currentIndex].id);
-          _scheduleAnalyticsTimers(_articlesCopy[_currentIndex].id);
-          _scheduleViewTimer(_articlesCopy[_currentIndex].id);
+          if (firstItem is NewsArticle) {
+            _markSeen(firstItem.id);
+            _trackImpression(firstItem.id);
+            _scheduleAnalyticsTimers(firstItem.id);
+            _scheduleViewTimer(firstItem.id);
+          }
         }
       });
     }
-    if (oldWidget.articles != widget.articles) {
+    if (oldWidget.items != widget.items) {
       // Merge newly fetched pages, preserve local like/comment state.
-      final existingIds = _articlesCopy.map((a) => a.id).toSet();
-      for (final a in widget.articles) {
-        if (!existingIds.contains(a.id)) {
-          _articlesCopy.add(a);
+      final existingIds = _itemsCopy
+          .whereType<NewsArticle>()
+          .map((a) => a.id)
+          .toSet();
+      for (final a in widget.items) {
+        if (a is NewsArticle && !existingIds.contains(a.id)) {
+          _itemsCopy.add(a);
         }
       }
       // Full refresh (e.g. pull-to-refresh shrinks list) → reset.
-      if (widget.articles.length < oldWidget.articles.length) {
-        _articlesCopy = List.of(widget.articles);
-        _currentIndex = _currentIndex.clamp(0, _articlesCopy.length - 1);
-        _likedIds
-          ..clear()
-          ..addAll([
-            for (final a in _articlesCopy)
-              if (a.isLiked) a.id,
-          ]);
-        _knownLikeCounts
-          ..clear()
-          ..addAll([
-            for (final a in _articlesCopy) a.id,
-          ]);
+      if (widget.items.length < oldWidget.items.length) {
+        _itemsCopy = List.of(widget.items);
+        _currentIndex = _currentIndex.clamp(0, _itemsCopy.length - 1);
+        _likedIds.clear();
+    for (final a in _itemsCopy) {
+      if (a is NewsArticle) {
+        if ((a as NewsArticle).isLiked) _likedIds.add((a as NewsArticle).id);
+      }
+    }
+    _knownLikeCounts.clear();
+    for (final a in _itemsCopy) {
+      if (a is NewsArticle) _knownLikeCounts.add((a as NewsArticle).id);
+    }
       } else {
         // Seed server liked state for newly appended pages.
-        for (final a in widget.articles) {
-          if (a.isLiked) _likedIds.add(a.id);
-          _knownLikeCounts.add(a.id);
-        }
+        for (final a in widget.items) {
+          if (a is NewsArticle) {
+            if (a.isLiked) _likedIds.add(a.id);
+            _knownLikeCounts.add(a.id);
+          }
       }
       if (widget.hasMore &&
           !widget.isLoadingMore &&
-          _currentIndex >= widget.articles.length - 3) {
+          _currentIndex >= widget.items.length - 3) {
         widget.onNearEnd?.call();
       }
     }
@@ -172,7 +183,7 @@ class _NewsFlipPanelState extends State<NewsFlipPanel> with TickerProviderStateM
   void _onVerticalDragUpdate(DragUpdateDetails details, double screenH) {
     if (_done ||
         _animController.isAnimating ||
-        _currentIndex >= widget.articles.length - 1) {
+        _currentIndex >= widget.items.length - 1) {
       return;
     }
     setState(() {
@@ -266,7 +277,7 @@ class _NewsFlipPanelState extends State<NewsFlipPanel> with TickerProviderStateM
     // Fire /view after short dwell so current card is counted without waiting for swipe.
     _viewTimer = Timer(const Duration(milliseconds: 1200), () {
       if (!mounted) return;
-      if (_currentIndex < _articlesCopy.length && _articlesCopy[_currentIndex].id == articleId) {
+      if (_currentIndex < _itemsCopy.length && _itemsCopy[_currentIndex].id == articleId) {
         _viewCountedIds.add(articleId);
         // ignore: discarded_futures
         _markViewOnSwipe(articleId);
@@ -292,8 +303,8 @@ class _NewsFlipPanelState extends State<NewsFlipPanel> with TickerProviderStateM
 
     if (shouldComplete) {
       // Analytics: quick swipe = skip, else already tracked via dwell timers
-      final prevId = _currentIndex >= 0 && _currentIndex < _articlesCopy.length
-          ? _articlesCopy[_currentIndex].id
+      final prevId = _currentIndex >= 0 && _currentIndex < _itemsCopy.length
+          ? _itemsCopy[_currentIndex].id
           : null;
       if (prevId != null && _cardShownAt != null) {
         final dwell = DateTime.now().difference(_cardShownAt!);
@@ -310,8 +321,8 @@ class _NewsFlipPanelState extends State<NewsFlipPanel> with TickerProviderStateM
       // If dwell timer hasn't fired yet (quick swipe), fire view now so it
       // is associated with the current post, not deferred until after next
       // card appears. If already counted via _scheduleViewTimer, skip duplicate.
-      if (_currentIndex >= 0 && _currentIndex < _articlesCopy.length) {
-        final curId = _articlesCopy[_currentIndex].id;
+      if (_currentIndex >= 0 && _currentIndex < _itemsCopy.length) {
+        final curId = _itemsCopy[_currentIndex].id;
         if (!_viewCountedIds.contains(curId)) {
           _viewTimer?.cancel();
           _viewCountedIds.add(curId);
@@ -330,18 +341,18 @@ class _NewsFlipPanelState extends State<NewsFlipPanel> with TickerProviderStateM
         });
         // Mark newly visible card as seen immediately — POST /viewed (no delay)
         // and schedule /view after dwell for the new current card.
-        if (_currentIndex >= 0 && _currentIndex < _articlesCopy.length) {
+        if (_currentIndex >= 0 && _currentIndex < _itemsCopy.length) {
           // ignore: discarded_futures
-          _markSeen(_articlesCopy[_currentIndex].id);
-          _trackImpression(_articlesCopy[_currentIndex].id);
-          _scheduleAnalyticsTimers(_articlesCopy[_currentIndex].id);
-          _scheduleViewTimer(_articlesCopy[_currentIndex].id);
+          _markSeen(_itemsCopy[_currentIndex].id);
+          _trackImpression(_itemsCopy[_currentIndex].id);
+          _scheduleAnalyticsTimers(_itemsCopy[_currentIndex].id);
+          _scheduleViewTimer(_itemsCopy[_currentIndex].id);
         }
         // Prefetch next page when 2 cards left
-        if (widget.hasMore && !widget.isLoadingMore && _currentIndex >= widget.articles.length - 2) {
+        if (widget.hasMore && !widget.isLoadingMore && _currentIndex >= widget.items.length - 2) {
           widget.onNearEnd?.call();
         }
-        if (_currentIndex >= widget.articles.length - 1) {
+        if (_currentIndex >= widget.items.length - 1) {
           if (widget.hasMore && !widget.isLoadingMore) {
             widget.onNearEnd?.call();
           } else {
@@ -393,7 +404,7 @@ class _NewsFlipPanelState extends State<NewsFlipPanel> with TickerProviderStateM
   ) {
     final cardColors = Theme.of(context).extension<AppCardColors>()!;
     final isLiked = _likedIds.contains(article.id);
-    final likes = _articlesCopy.firstWhere((a) => a.id == article.id, orElse: () => article).likes;
+    final likes = _itemsCopy.firstWhere((a) => a.id == article.id, orElse: () => article).likes;
 
     return Container(
       width: double.infinity,
@@ -414,7 +425,7 @@ class _NewsFlipPanelState extends State<NewsFlipPanel> with TickerProviderStateM
                   Icon(Icons.visibility_outlined, size: 22, color: cardColors.descriptionColor),
                   const SizedBox(width: 6),
                   Text(
-                    _formatCount(_articlesCopy.firstWhere((a) => a.id == article.id, orElse: () => article).views),
+                    _formatCount(_itemsCopy.firstWhere((a) => a.id == article.id, orElse: () => article).views),
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
@@ -437,7 +448,7 @@ class _NewsFlipPanelState extends State<NewsFlipPanel> with TickerProviderStateM
                       const SizedBox(width: 6),
                       Text(
                         _formatCount(
-                          _articlesCopy.firstWhere((a) => a.id == article.id, orElse: () => article).comments,
+                          _itemsCopy.firstWhere((a) => a.id == article.id, orElse: () => article).comments,
                         ),
                         style: TextStyle(
                           fontSize: 13,
@@ -554,10 +565,10 @@ class _NewsFlipPanelState extends State<NewsFlipPanel> with TickerProviderStateM
     return LayoutBuilder(
       builder: (context, constraints) {
         final nextIndex =
-            math.min(_currentIndex + 1, widget.articles.length - 1);
+            math.min(_currentIndex + 1, widget.items.length - 1);
 
-        final currentArticle = widget.articles[_currentIndex];
-        final nextArticle = widget.articles[nextIndex];
+        final currentArticle = widget.items[_currentIndex];
+        final nextArticle = widget.items[nextIndex];
 
         final currentTop = _buildTopImagePanel(context, currentArticle);
         final currentBottom = _buildBottomTextPanel(context, currentArticle);
@@ -641,8 +652,8 @@ class _NewsFlipPanelState extends State<NewsFlipPanel> with TickerProviderStateM
     if (postId == null) return;
     final wasLiked = _likedIds.contains(id);
     final wasKnown = _knownLikeCounts.contains(id);
-    final prevIdx = _articlesCopy.indexWhere((a) => a.id == id);
-    final prevCount = prevIdx != -1 ? _articlesCopy[prevIdx].likes : 0;
+    final prevIdx = _itemsCopy.indexWhere((a) => a.id == id);
+    final prevCount = prevIdx != -1 ? _itemsCopy[prevIdx].likes : 0;
 
     // Optimistic update for instant feedback: icon flips and the count
     // moves ±1 immediately; the server response reconciles it below.
@@ -653,15 +664,15 @@ class _NewsFlipPanelState extends State<NewsFlipPanel> with TickerProviderStateM
         _likedIds.add(id);
       }
       if (wasKnown && prevIdx != -1) {
-        final current = _articlesCopy[prevIdx];
+        final current = _itemsCopy[prevIdx];
         final next = wasLiked
             ? (current.likes > 0 ? current.likes - 1 : 0)
             : current.likes + 1;
-        _articlesCopy[prevIdx] = current.copyWith(likes: next);
+        _itemsCopy[prevIdx] = current.copyWith(likes: next);
       } else if (!wasLiked && prevIdx != -1) {
         // No server count yet: show the +1 immediately, truth arrives below.
         _knownLikeCounts.add(id);
-        _articlesCopy[prevIdx] = _articlesCopy[prevIdx].copyWith(likes: prevCount + 1);
+        _itemsCopy[prevIdx] = _itemsCopy[prevIdx].copyWith(likes: prevCount + 1);
       }
     });
     // Analytics (batched, idempotent)
@@ -689,10 +700,10 @@ class _NewsFlipPanelState extends State<NewsFlipPanel> with TickerProviderStateM
         }
         if (serverCount != null) {
           _knownLikeCounts.add(id);
-          final idx = _articlesCopy.indexWhere((a) => a.id == id);
+          final idx = _itemsCopy.indexWhere((a) => a.id == id);
           if (idx != -1) {
-            final current = _articlesCopy[idx];
-            _articlesCopy[idx] = current.copyWith(
+            final current = _itemsCopy[idx];
+            _itemsCopy[idx] = current.copyWith(
               likes: serverCount,
               isLiked: serverLiked ?? current.isLiked,
             );
@@ -711,9 +722,9 @@ class _NewsFlipPanelState extends State<NewsFlipPanel> with TickerProviderStateM
         if (!wasKnown) {
           _knownLikeCounts.remove(id);
         }
-        final idx = _articlesCopy.indexWhere((a) => a.id == id);
+        final idx = _itemsCopy.indexWhere((a) => a.id == id);
         if (idx != -1) {
-          _articlesCopy[idx] = _articlesCopy[idx].copyWith(likes: prevCount);
+          _itemsCopy[idx] = _itemsCopy[idx].copyWith(likes: prevCount);
         }
       });
       final msg = e.toString().toLowerCase();
@@ -751,9 +762,9 @@ class _NewsFlipPanelState extends State<NewsFlipPanel> with TickerProviderStateM
         onCommentPosted: (_) {
           // Server is source of truth for the list; just bump the count badge.
           setState(() {
-            final idx = _articlesCopy.indexWhere((a) => a.id == article.id);
+            final idx = _itemsCopy.indexWhere((a) => a.id == article.id);
             if (idx != -1) {
-              _articlesCopy[idx] = _articlesCopy[idx].copyWith(comments: _articlesCopy[idx].comments + 1);
+              _itemsCopy[idx] = _itemsCopy[idx].copyWith(comments: _itemsCopy[idx].comments + 1);
             }
           });
         },
