@@ -12,6 +12,7 @@ import '../../../../core/utils/google_sign_in_error.dart';
 import '../../data/datasources/auth_remote_datasource.dart';
 import '../../data/repositories/auth_repository_impl.dart';
 import '../cubit/auth_cubit.dart';
+import '../widgets/otp_verification_view.dart';
 
 class AuthPage extends StatelessWidget {
   const AuthPage({super.key});
@@ -213,6 +214,10 @@ class _AuthViewState extends State<_AuthView> {
         }
       },
       builder: (context, state) {
+        if (state is AuthOtpState) {
+          return OtpVerificationView(state: state);
+        }
+
         final mode = context.read<AuthCubit>().mode;
         final isLogin = mode == AuthMode.login;
         final isLoading = state is AuthLoading;
@@ -379,22 +384,15 @@ class _AuthViewState extends State<_AuthView> {
                                 else
                                   Align(
                                     alignment: Alignment.centerRight,
-                                    child: TextButton(
-                                      onPressed: () {
-                                        if (_emailCtrl.text.isEmpty) {
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            const SnackBar(content: Text('Please enter email address first')),
-                                          );
-                                          return;
-                                        }
-                                        context.read<AuthCubit>().resendVerify(_emailCtrl.text);
-                                      },
+                                    child: Padding(
+                                      padding: const EdgeInsets.only(right: 8, top: 8),
                                       child: Text(
-                                        'Resend Verification?',
+                                        'We will email you a 6-digit code to verify your account.',
+                                        textAlign: TextAlign.right,
                                         style: TextStyle(
                                           color: cardColors.descriptionColor,
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w600,
+                                          fontSize: 12,
+                                          height: 1.35,
                                         ),
                                       ),
                                     ),

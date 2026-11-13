@@ -7,6 +7,9 @@ import '../models/user_model.dart';
 
 abstract class AuthRemoteDataSource {
   Future<AuthResponse> register({required String name, required String email, required String phone, required String password, required String passwordConfirmation});
+  Future<AuthResponse> sendRegistrationOtp({required String name, required String email, required String phone, required String password, required String passwordConfirmation});
+  Future<AuthResponse> verifyRegistrationOtp({required String email, required String otp});
+  Future<AuthResponse> resendRegistrationOtp({required String email});
   Future<AuthResponse> login({required String email, required String password});
   Future<AuthResponse> checkEmail(String email);
   Future<AuthResponse> forgotPassword(String email);
@@ -35,8 +38,13 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     return [parts.first, parts.sublist(1).join(' ')];
   }
 
-  @override
-  Future<AuthResponse> register({required String name, required String email, required String phone, required String password, required String passwordConfirmation}) async {
+  Map<String, dynamic> _registrationPayload({
+    required String name,
+    required String email,
+    required String phone,
+    required String password,
+    required String passwordConfirmation,
+  }) {
     final trimmedName = name.trim().replaceAll(RegExp(r'\s+'), ' ');
     final nameParts = splitFullName(trimmedName);
     final firstName = nameParts[0];
@@ -58,9 +66,53 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       payload['phone'] = phone.trim();
     }
 
+    return payload;
+  }
+
+  @override
+  Future<AuthResponse> register({required String name, required String email, required String phone, required String password, required String passwordConfirmation}) async {
     final res = await dioClient.post<Map<String, dynamic>>(
       '/api/v1/register',
-      data: payload,
+      data: _registrationPayload(
+        name: name,
+        email: email,
+        phone: phone,
+        password: password,
+        passwordConfirmation: passwordConfirmation,
+      ),
+    );
+    return AuthResponse.fromJson(res.data ?? {});
+  }
+
+  @override
+  Future<AuthResponse> sendRegistrationOtp({required String name, required String email, required String phone, required String password, required String passwordConfirmation}) async {
+    final res = await dioClient.post<Map<String, dynamic>>(
+      '/api/v1/register/send-otp',
+      data: _registrationPayload(
+        name: name,
+        email: email,
+        phone: phone,
+        password: password,
+        passwordConfirmation: passwordConfirmation,
+      ),
+    );
+    return AuthResponse.fromJson(res.data ?? {});
+  }
+
+  @override
+  Future<AuthResponse> verifyRegistrationOtp({required String email, required String otp}) async {
+    final res = await dioClient.post<Map<String, dynamic>>(
+      '/api/v1/register/verify-otp',
+      data: {'email': email.trim(), 'otp': otp.trim()},
+    );
+    return AuthResponse.fromJson(res.data ?? {});
+  }
+
+  @override
+  Future<AuthResponse> resendRegistrationOtp({required String email}) async {
+    final res = await dioClient.post<Map<String, dynamic>>(
+      '/api/v1/register/resend-otp',
+      data: {'email': email.trim()},
     );
     return AuthResponse.fromJson(res.data ?? {});
   }

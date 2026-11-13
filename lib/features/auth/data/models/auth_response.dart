@@ -7,8 +7,9 @@ class AuthResponse {
   final String? token;
   final UserModel? user;
   final Map<String, dynamic>? errors;
+  final Map<String, dynamic>? data;
 
-  const AuthResponse({required this.error, this.message, this.token, this.user, this.errors});
+  const AuthResponse({required this.error, this.message, this.token, this.user, this.errors, this.data});
 
   factory AuthResponse.fromJson(Map<String, dynamic> json) {
     // Login: {error:false, data:{token:...}, message:null}
@@ -17,6 +18,10 @@ class AuthResponse {
     final data = json['data'];
     String? token;
     UserModel? user;
+    Map<String, dynamic>? dataMap;
+    if (data is Map) {
+      dataMap = Map<String, dynamic>.from(data);
+    }
     if (data is Map<String, dynamic>) {
       if (data['token'] is String) token = data['token'];
       if (data['user'] is Map<String, dynamic>) user = UserModel.fromJson(data['user']);
@@ -37,6 +42,7 @@ class AuthResponse {
       token: token,
       user: user,
       errors: json['errors'] as Map<String, dynamic>?,
+      data: dataMap,
     );
   }
 }

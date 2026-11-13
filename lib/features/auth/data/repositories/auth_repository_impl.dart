@@ -44,6 +44,40 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
+  Future<AuthResponse> sendRegistrationOtp({required String name, required String email, required String phone, required String password, required String passwordConfirmation}) async {
+    try {
+      final res = await remote.sendRegistrationOtp(name: name, email: email, phone: phone, password: password, passwordConfirmation: passwordConfirmation);
+      if (res.error) throw Exception(res.message ?? 'Could not send verification code');
+      return res;
+    } on DioException catch (e) {
+      throw Exception(_extractMessage(e));
+    }
+  }
+
+  @override
+  Future<AuthResponse> verifyRegistrationOtp({required String email, required String otp}) async {
+    try {
+      final res = await remote.verifyRegistrationOtp(email: email, otp: otp);
+      if (res.error) throw Exception(res.message ?? 'Verification failed');
+      if (res.token != null) await storage.saveToken(res.token!);
+      return res;
+    } on DioException catch (e) {
+      throw Exception(_extractMessage(e));
+    }
+  }
+
+  @override
+  Future<AuthResponse> resendRegistrationOtp({required String email}) async {
+    try {
+      final res = await remote.resendRegistrationOtp(email: email);
+      if (res.error) throw Exception(res.message ?? 'Could not resend verification code');
+      return res;
+    } on DioException catch (e) {
+      throw Exception(_extractMessage(e));
+    }
+  }
+
+  @override
   Future<AuthResponse> login({required String email, required String password}) async {
     try {
       final res = await remote.login(email: email, password: password);

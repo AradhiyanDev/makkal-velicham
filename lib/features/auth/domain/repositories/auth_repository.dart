@@ -3,6 +3,9 @@ import '../../data/models/auth_response.dart';
 
 abstract class AuthRepository {
   Future<AuthResponse> register({required String name, required String email, required String phone, required String password, required String passwordConfirmation});
+  Future<AuthResponse> sendRegistrationOtp({required String name, required String email, required String phone, required String password, required String passwordConfirmation});
+  Future<AuthResponse> verifyRegistrationOtp({required String email, required String otp});
+  Future<AuthResponse> resendRegistrationOtp({required String email});
   Future<AuthResponse> login({required String email, required String password});
   Future<AuthResponse> checkEmail(String email);
   Future<AuthResponse> forgotPassword(String email);
