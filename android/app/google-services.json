@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "303723654926",
+    "project_id": "makkalvelicham-4aad3",
+    "storage_bucket": "makkalvelicham-4aad3.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:303723654926:android:f4a6bde727ec526d8f715f",
+        "android_client_info": {
+          "package_name": "com.makkal.velicham"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDTpWtmi5VbHZwQuuRv87dU4AtogWe-2lY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
